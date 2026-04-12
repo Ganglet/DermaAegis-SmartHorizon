@@ -170,37 +170,45 @@ div.stButton > button {
   box-shadow: 0 4px 14px rgba(218,79,56,0.3) !important;
 }
 div.stButton > button:hover   { filter: brightness(1.08) !important; transform: translateY(-1px); }
-div.stButton > button:disabled { opacity: 0.45 !important; box-shadow: none !important; }
-
-/* radio as toggle pills */
-[data-testid="stRadio"] > div {
-  display: flex !important;
-  gap: 8px !important;
-  flex-direction: row !important;
+div.stButton > button:disabled {
+  opacity: 0.6 !important;
+  box-shadow: none !important;
+  background: linear-gradient(120deg, #c4705a, #d9b07a) !important;
 }
-[data-testid="stRadio"] label {
-  background: rgba(255,255,255,0.8) !important;
-  border: 1.5px solid rgba(31,42,33,0.18) !important;
+
+/* tabs styled as pills */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+  gap: 6px !important;
+  background: transparent !important;
+  border-bottom: none !important;
+  margin-bottom: 10px !important;
+}
+[data-testid="stTabs"] button[role="tab"] {
+  background: rgba(255,255,255,0.82) !important;
+  border: 1.5px solid rgba(31,42,33,0.2) !important;
   border-radius: 10px !important;
-  padding: 8px 20px !important;
-  font-weight: 600 !important;
+  padding: 8px 22px !important;
+  font-weight: 700 !important;
   font-size: 0.9rem !important;
   color: #1f2a21 !important;
-  cursor: pointer !important;
-  transition: all 150ms ease !important;
 }
-[data-testid="stRadio"] label:has(input:checked) {
-  background: linear-gradient(120deg,#da4f38,#f3a949) !important;
+[data-testid="stTabs"] button[role="tab"]:hover {
+  background: rgba(255,255,255,0.95) !important;
+}
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+  background: linear-gradient(120deg, #da4f38, #f3a949) !important;
   border-color: transparent !important;
   color: #fff !important;
 }
-/* hide the radio dot — keep only the text */
-[data-testid="stRadio"] input { position: absolute; opacity: 0; width: 0; height: 0; }
-[data-testid="stRadio"] label > div:first-child { display: none !important; }
+/* hide the blue underline indicator */
+[data-testid="stTabs"] [data-baseweb="tab-highlight"],
+[data-testid="stTabs"] [data-baseweb="tab-border"] {
+  display: none !important;
+}
 
 [data-testid="stFileUploaderDropzone"] {
-  background: rgba(255,255,255,0.65) !important;
-  border: 1.5px dashed rgba(66,81,69,0.45) !important;
+  background: rgba(255,255,255,0.8) !important;
+  border: 2px dashed rgba(66,81,69,0.35) !important;
   border-radius: 12px !important;
 }
 
@@ -387,11 +395,10 @@ if not model_loaded:
 # ── Input panel ─────────────────────────────────────────────────────────────
 st.markdown('<p class="sec-label">Image Input</p>', unsafe_allow_html=True)
 
-input_mode = st.radio("Input mode", ["Upload Image", "Use Camera"],
-                      horizontal=True, label_visibility="collapsed")
 pil_image = None
+tab_upload, tab_camera = st.tabs(["📁  Upload Image", "📷  Use Camera"])
 
-if input_mode == "Upload Image":
+with tab_upload:
     uploaded = st.file_uploader(
         "Choose a dermoscopic image (JPG, PNG, WEBP)",
         type=["jpg", "jpeg", "png", "webp"],
@@ -399,7 +406,8 @@ if input_mode == "Upload Image":
     )
     if uploaded:
         pil_image = Image.open(uploaded).convert("RGB")
-else:
+
+with tab_camera:
     camera_shot = st.camera_input("Take a photo", label_visibility="collapsed")
     if camera_shot:
         pil_image = Image.open(camera_shot).convert("RGB")
