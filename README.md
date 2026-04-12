@@ -1,3 +1,14 @@
+---
+title: DermAegis AI
+emoji: 🔬
+colorFrom: orange
+colorTo: red
+sdk: gradio
+sdk_version: "4.0"
+app_file: app.py
+pinned: false
+---
+
 # DermAegis AI — Skin Lesion Intelligence Workspace
 
 An end-to-end AI system for dermoscopic skin lesion classification built on the HAM10000 dataset. Combines EfficientNetB3 transfer learning with Bayesian uncertainty quantification, Grad-CAM explainability, and dual interfaces — a real-time React web app and a Gradio interface deployable on HuggingFace Spaces.
