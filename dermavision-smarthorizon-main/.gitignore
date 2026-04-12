@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+.conda/
+
+# Environment / secrets
+.env
+.env.*
+*.secret
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs and temp
+*.log
+*.tmp
+*.temp
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Dataset (large, not versioned)
+dataset/
+
+# Trained model weights — only the active model is versioned (via git-lfs)
+models/*.keras
+!models/cnn_model.keras
+models/*.h5
+models/*.pt
+models/*.pth
+models/*.ckpt
+
+# Model artifacts regenerated on each training run
+models/confusion_matrix.png
+models/training_curves.png
+models/model_metadata.json
+models/classification_report.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
