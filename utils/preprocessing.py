@@ -84,9 +84,24 @@ def get_backbone_custom_objects(backbone: str) -> dict[str, object]:
 
 def load_trained_model(model_path: str, backbone: str | None = None) -> tf.keras.Model:
     """Load a saved keras model and resolve preprocess_input for Lambda deserialization."""
+    # Provide all preprocessors so the Lambda layer can be deserialized regardless
+    # of which backbone was used when the model was saved.
+    custom_objects = {
+        "preprocess_input": tf.keras.applications.efficientnet.preprocess_input,
+        "mobilenet_preprocess_input": tf.keras.applications.mobilenet_v2.preprocess_input,
+        "resnet_preprocess_input": tf.keras.applications.resnet50.preprocess_input,
+    }
+    # Merge in the inferred backbone preprocessor (also under the generic key).
     selected_backbone = backbone or infer_backbone_from_model_path(model_path)
-    custom_objects = get_backbone_custom_objects(selected_backbone)
-    return tf.keras.models.load_model(model_path, custom_objects=custom_objects, compile=False)
+    custom_objects.update(get_backbone_custom_objects(selected_backbone))
+
+    load_kwargs = dict(custom_objects=custom_objects, compile=False)
+    try:
+        # safe_mode=False allows Lambda layer function deserialization (keras ≥2.12).
+        return tf.keras.models.load_model(model_path, safe_mode=False, **load_kwargs)
+    except TypeError:
+        # Older keras versions don't have safe_mode — fall back.
+        return tf.keras.models.load_model(model_path, **load_kwargs)
 
 
 def load_metadata(metadata_path: str) -> pd.DataFrame:
