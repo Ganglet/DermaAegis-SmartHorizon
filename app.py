@@ -171,45 +171,30 @@ div.stButton > button {
 }
 div.stButton > button:hover   { filter: brightness(1.08) !important; transform: translateY(-1px); }
 div.stButton > button:disabled {
-  opacity: 0.6 !important;
+  opacity: 0.55 !important;
   box-shadow: none !important;
-  background: linear-gradient(120deg, #c4705a, #d9b07a) !important;
 }
 
-/* tabs styled as pills */
-[data-testid="stTabs"] [data-baseweb="tab-list"] {
-  gap: 6px !important;
-  background: transparent !important;
-  border-bottom: none !important;
-  margin-bottom: 10px !important;
-}
-[data-testid="stTabs"] button[role="tab"] {
-  background: rgba(255,255,255,0.82) !important;
-  border: 1.5px solid rgba(31,42,33,0.2) !important;
-  border-radius: 10px !important;
-  padding: 8px 22px !important;
-  font-weight: 700 !important;
-  font-size: 0.9rem !important;
+/* secondary (inactive) mode toggle buttons */
+div.stButton > button[kind="secondary"] {
+  background: rgba(255,255,255,0.85) !important;
   color: #1f2a21 !important;
+  border: 1.5px solid rgba(31,42,33,0.22) !important;
+  box-shadow: none !important;
 }
-[data-testid="stTabs"] button[role="tab"]:hover {
-  background: rgba(255,255,255,0.95) !important;
-}
-[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
-  background: linear-gradient(120deg, #da4f38, #f3a949) !important;
-  border-color: transparent !important;
-  color: #fff !important;
-}
-/* hide the blue underline indicator */
-[data-testid="stTabs"] [data-baseweb="tab-highlight"],
-[data-testid="stTabs"] [data-baseweb="tab-border"] {
-  display: none !important;
+div.stButton > button[kind="secondary"]:hover {
+  background: #fff !important;
+  filter: none !important;
 }
 
 [data-testid="stFileUploaderDropzone"] {
-  background: rgba(255,255,255,0.8) !important;
-  border: 2px dashed rgba(66,81,69,0.35) !important;
+  background: rgba(255,255,255,0.85) !important;
+  border: 2px dashed rgba(31,42,33,0.25) !important;
   border-radius: 12px !important;
+}
+[data-testid="stFileUploaderDropzone"] p,
+[data-testid="stFileUploaderDropzone"] span {
+  color: #2a2a2a !important;
 }
 
 section[data-testid="stCameraInputToolbar"] { display: none !important; }
@@ -395,22 +380,35 @@ if not model_loaded:
 # ── Input panel ─────────────────────────────────────────────────────────────
 st.markdown('<p class="sec-label">Image Input</p>', unsafe_allow_html=True)
 
-pil_image = None
-tab_upload, tab_camera = st.tabs(["📁  Upload Image", "📷  Use Camera"])
+if "camera_on" not in st.session_state:
+    st.session_state.camera_on = False
 
-with tab_upload:
+ic1, ic2 = st.columns([1, 1])
+with ic1:
+    if st.button("📁  Upload Image", use_container_width=True,
+                 type="secondary" if st.session_state.camera_on else "primary"):
+        st.session_state.camera_on = False
+        st.rerun()
+with ic2:
+    if st.button("📷  Use Camera", use_container_width=True,
+                 type="primary" if st.session_state.camera_on else "secondary"):
+        st.session_state.camera_on = True
+        st.rerun()
+
+pil_image = None
+
+if st.session_state.camera_on:
+    camera_shot = st.camera_input("", label_visibility="collapsed")
+    if camera_shot:
+        pil_image = Image.open(camera_shot).convert("RGB")
+else:
     uploaded = st.file_uploader(
-        "Choose a dermoscopic image (JPG, PNG, WEBP)",
+        "Drag & drop or click to upload (JPG, PNG, WEBP)",
         type=["jpg", "jpeg", "png", "webp"],
         label_visibility="collapsed",
     )
     if uploaded:
         pil_image = Image.open(uploaded).convert("RGB")
-
-with tab_camera:
-    camera_shot = st.camera_input("Take a photo", label_visibility="collapsed")
-    if camera_shot:
-        pil_image = Image.open(camera_shot).convert("RGB")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -418,6 +416,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 run_btn = st.button(
     "Run Prediction",
     disabled=(pil_image is None or not model_loaded),
+    type="primary",
 )
 
 if run_btn and pil_image and model_loaded:
@@ -439,7 +438,7 @@ with left:
     elif pil_image:
         st.image(pil_image, use_container_width=True)
     else:
-        st.markdown("<p style='color:#425145;font-size:0.9rem'>No image selected.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#2a2a2a;font-size:0.9rem'>No image selected.</p>", unsafe_allow_html=True)
 
 with right:
     st.markdown('<p class="sec-label">Prediction</p>', unsafe_allow_html=True)
@@ -471,17 +470,20 @@ with right:
 
         if res.get("bias_info"):
             b = res["bias_info"]
-            with st.expander("Fitzpatrick Skin Tone Analysis"):
+            with st.expander("🔬 Fitzpatrick Skin Tone Analysis"):
                 st.markdown(f"""
-**Detected:** {b['skin_tone_name']}
-**Training representation:** {b['training_representation']} of HAM10000
-**Reliability:** {b['reliability_level']}
-**Adjusted confidence:** {b['adjusted_confidence']}
+| Field | Value |
+|---|---|
+| **Detected tone** | {b['skin_tone_name']} |
+| **HAM10000 representation** | {b['training_representation']} |
+| **Reliability** | {b['reliability_level']} |
+| **Adjusted confidence** | {b['adjusted_confidence']} |
 """)
-                if b.get("bias_warning"):
-                    st.warning(b["bias_warning"])
+                warning_txt = b.get("bias_warning", "")
+                if warning_txt and warning_txt.strip():
+                    st.warning(warning_txt)
     else:
-        st.markdown("<p style='color:#425145;font-size:0.9rem'>Run inference to view results.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#2a2a2a;font-size:0.9rem'>Run inference to view results.</p>", unsafe_allow_html=True)
 
 # ── Grad-CAM ─────────────────────────────────────────────────────────────────
 st.markdown("<br>", unsafe_allow_html=True)
@@ -492,9 +494,9 @@ if res and res.get("gradcam_img"):
     with gcol:
         st.image(res["gradcam_img"], use_container_width=True)
 elif res:
-    st.markdown("<p style='color:#425145;font-size:0.9rem'>Grad-CAM unavailable for this image.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#2a2a2a;font-size:0.9rem'>Grad-CAM unavailable for this image.</p>", unsafe_allow_html=True)
 else:
-    st.markdown("<p style='color:#425145;font-size:0.9rem'>Heatmap will appear after prediction.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#2a2a2a;font-size:0.9rem'>Heatmap will appear after prediction.</p>", unsafe_allow_html=True)
 
 # ── Notice ────────────────────────────────────────────────────────────────────
 st.markdown("""
