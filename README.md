@@ -1,8 +1,8 @@
 ---
 title: DermAegis AI
 emoji: 🔬
-colorFrom: orange
-colorTo: red
+colorFrom: red
+colorTo: pink
 sdk: gradio
 sdk_version: "4.0"
 app_file: app.py
