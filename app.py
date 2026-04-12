@@ -131,11 +131,11 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.7rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em;
-  color: #425145; margin: 0 0 6px;
+  color: #1a1a1a; margin: 0 0 6px;
 }
 .u-track { height: 6px; border-radius: 999px; background: rgba(31,42,33,0.12); overflow: hidden; margin-bottom: 5px; }
 .u-fill  { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #1f7447, #f3a949, #da4f38); }
-.u-meta    { font-size: 0.81rem; color: #425145; margin: 0; }
+.u-meta    { font-size: 0.81rem; color: #1a1a1a; margin: 0; }
 .u-warning { font-size: 0.81rem; font-weight: 600; color: #8f2213; margin: 6px 0 0; }
 
 /* ── probability bars ── */
@@ -408,9 +408,17 @@ with tab_upload:
         pil_image = Image.open(uploaded).convert("RGB")
 
 with tab_camera:
-    camera_shot = st.camera_input("Take a photo", label_visibility="collapsed")
-    if camera_shot:
-        pil_image = Image.open(camera_shot).convert("RGB")
+    if not st.session_state.get("cam_started", False):
+        st.markdown("<p style='color:#2a2a2a;margin-bottom:10px'>Camera is off. Click below to activate.</p>",
+                    unsafe_allow_html=True)
+        if st.button("📷 Activate Camera"):
+            st.session_state.cam_started = True
+    if st.session_state.get("cam_started", False):
+        camera_shot = st.camera_input("", label_visibility="collapsed")
+        if camera_shot:
+            pil_image = Image.open(camera_shot).convert("RGB")
+        if st.button("⏹ Stop Camera"):
+            st.session_state.cam_started = False
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -439,7 +447,7 @@ with left:
     elif pil_image:
         st.image(pil_image, use_container_width=True)
     else:
-        st.markdown("<p style='color:#425145;font-size:0.9rem'>No image selected.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#1a1a1a;font-size:0.9rem'>No image selected.</p>", unsafe_allow_html=True)
 
 with right:
     st.markdown('<p class="sec-label">Prediction</p>', unsafe_allow_html=True)
@@ -471,17 +479,20 @@ with right:
 
         if res.get("bias_info"):
             b = res["bias_info"]
-            with st.expander("Fitzpatrick Skin Tone Analysis"):
+            with st.expander("🔬 Fitzpatrick Skin Tone Analysis"):
                 st.markdown(f"""
-**Detected:** {b['skin_tone_name']}
-**Training representation:** {b['training_representation']} of HAM10000
-**Reliability:** {b['reliability_level']}
-**Adjusted confidence:** {b['adjusted_confidence']}
+| | |
+|---|---|
+| **Detected tone** | {b['skin_tone_name']} |
+| **HAM10000 representation** | {b['training_representation']} |
+| **Reliability** | {b['reliability_level']} |
+| **Adjusted confidence** | {b['adjusted_confidence']} |
 """)
-                if b.get("bias_warning"):
-                    st.warning(b["bias_warning"])
+                warn = (b.get("bias_warning") or "").strip()
+                if warn:
+                    st.warning(warn)
     else:
-        st.markdown("<p style='color:#425145;font-size:0.9rem'>Run inference to view results.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#1a1a1a;font-size:0.9rem'>Run inference to view results.</p>", unsafe_allow_html=True)
 
 # ── Grad-CAM ─────────────────────────────────────────────────────────────────
 st.markdown("<br>", unsafe_allow_html=True)
@@ -492,9 +503,9 @@ if res and res.get("gradcam_img"):
     with gcol:
         st.image(res["gradcam_img"], use_container_width=True)
 elif res:
-    st.markdown("<p style='color:#425145;font-size:0.9rem'>Grad-CAM unavailable for this image.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#1a1a1a;font-size:0.9rem'>Grad-CAM unavailable for this image.</p>", unsafe_allow_html=True)
 else:
-    st.markdown("<p style='color:#425145;font-size:0.9rem'>Heatmap will appear after prediction.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#1a1a1a;font-size:0.9rem'>Heatmap will appear after prediction.</p>", unsafe_allow_html=True)
 
 # ── Notice ────────────────────────────────────────────────────────────────────
 st.markdown("""
