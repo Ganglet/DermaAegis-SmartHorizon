@@ -83,25 +83,46 @@ def get_backbone_custom_objects(backbone: str) -> dict[str, object]:
 
 
 def load_trained_model(model_path: str, backbone: str | None = None) -> tf.keras.Model:
-    """Load a saved keras model and resolve preprocess_input for Lambda deserialization."""
-    # Provide all preprocessors so the Lambda layer can be deserialized regardless
-    # of which backbone was used when the model was saved.
+    """Load a saved keras model, with fallback that bypasses Lambda deserialization."""
+    import tempfile, zipfile
+
+    selected_backbone = backbone or infer_backbone_from_model_path(model_path)
     custom_objects = {
         "preprocess_input": tf.keras.applications.efficientnet.preprocess_input,
         "mobilenet_preprocess_input": tf.keras.applications.mobilenet_v2.preprocess_input,
         "resnet_preprocess_input": tf.keras.applications.resnet50.preprocess_input,
     }
-    # Merge in the inferred backbone preprocessor (also under the generic key).
-    selected_backbone = backbone or infer_backbone_from_model_path(model_path)
     custom_objects.update(get_backbone_custom_objects(selected_backbone))
 
-    load_kwargs = dict(custom_objects=custom_objects, compile=False)
-    try:
-        # safe_mode=False allows Lambda layer function deserialization (keras ≥2.12).
-        return tf.keras.models.load_model(model_path, safe_mode=False, **load_kwargs)
-    except TypeError:
-        # Older keras versions don't have safe_mode — fall back.
-        return tf.keras.models.load_model(model_path, **load_kwargs)
+    # Attempt 1: standard load with safe_mode=False (keras 2.12+)
+    for kwargs in [
+        dict(custom_objects=custom_objects, compile=False, safe_mode=False),
+        dict(custom_objects=custom_objects, compile=False),
+    ]:
+        try:
+            return tf.keras.models.load_model(model_path, **kwargs)
+        except Exception:
+            continue
+
+    # Attempt 2: .keras is a zip — extract weights.h5 and load into rebuilt model.
+    # This bypasses config/Lambda deserialization entirely.
+    for bb in [selected_backbone, "efficientnetb3", "efficientnetb0", "mobilenetv2", "resnet50"]:
+        if bb not in BACKBONES:
+            continue
+        try:
+            model, _ = build_transfer_model(backbone=bb)
+            with tempfile.TemporaryDirectory() as tmp:
+                with zipfile.ZipFile(model_path, "r") as zf:
+                    zf.extractall(tmp)
+                for fname in ("model.weights.h5", "model_weights.h5"):
+                    wpath = os.path.join(tmp, fname)
+                    if os.path.exists(wpath):
+                        model.load_weights(wpath)
+                        return model
+        except Exception:
+            continue
+
+    raise RuntimeError(f"All load strategies failed for {model_path}")
 
 
 def load_metadata(metadata_path: str) -> pd.DataFrame:
