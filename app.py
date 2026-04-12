@@ -164,47 +164,58 @@ div.stButton > button {
   font-weight: 700 !important;
   font-size: 1rem !important;
   padding: 12px 24px !important;
-  width: 100% !important;
+  width: auto !important;
+  min-width: 180px !important;
   letter-spacing: 0.01em !important;
+  box-shadow: 0 4px 14px rgba(218,79,56,0.3) !important;
 }
-div.stButton > button:hover   { filter: brightness(1.06) !important; }
-div.stButton > button:disabled { opacity: 0.55 !important; }
+div.stButton > button:hover   { filter: brightness(1.08) !important; transform: translateY(-1px); }
+div.stButton > button:disabled { opacity: 0.45 !important; box-shadow: none !important; }
+
+/* radio as toggle pills */
+[data-testid="stRadio"] > div {
+  display: flex !important;
+  gap: 8px !important;
+  flex-direction: row !important;
+}
+[data-testid="stRadio"] label {
+  background: rgba(255,255,255,0.75) !important;
+  border: 1.5px solid rgba(31,42,33,0.18) !important;
+  border-radius: 10px !important;
+  padding: 8px 18px !important;
+  font-weight: 600 !important;
+  font-size: 0.88rem !important;
+  color: #1f2a21 !important;
+  cursor: pointer !important;
+  transition: all 150ms ease !important;
+}
+[data-testid="stRadio"] label:has(input:checked) {
+  background: linear-gradient(120deg,#da4f38,#f3a949) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+[data-testid="stRadio"] input { display: none !important; }
 
 [data-testid="stFileUploaderDropzone"] {
   background: rgba(255,255,255,0.65) !important;
-  border: 1.5px dashed rgba(66,81,69,0.5) !important;
+  border: 1.5px dashed rgba(66,81,69,0.45) !important;
   border-radius: 12px !important;
-}
-
-[data-testid="stTabs"] [data-baseweb="tab-list"] {
-  background: rgba(255,255,255,0.55) !important;
-  border-radius: 10px !important;
-  gap: 4px;
-}
-[data-testid="stTabs"] [data-baseweb="tab"] {
-  border-radius: 8px !important;
-  font-weight: 600 !important;
-  color: #1f2a21 !important;
-  opacity: 1 !important;
-}
-[data-testid="stTabs"] [data-baseweb="tab"] p {
-  color: #1f2a21 !important;
-  opacity: 1 !important;
 }
 
 section[data-testid="stCameraInputToolbar"] { display: none !important; }
 
-/* image output — no extra borders */
+/* images — constrained height */
 [data-testid="stImage"] img {
   border-radius: 10px !important;
   border: 1px solid rgba(31,42,33,0.12) !important;
   background: #fff;
+  max-height: 320px !important;
+  object-fit: contain !important;
+  width: 100% !important;
 }
 
-/* divider */
 hr { border-color: rgba(31,42,33,0.1) !important; }
 
-/* expander */
 [data-testid="stExpander"] {
   background: rgba(255,255,255,0.6) !important;
   border: 1px solid rgba(31,42,33,0.12) !important;
@@ -374,10 +385,11 @@ if not model_loaded:
 # ── Input panel ─────────────────────────────────────────────────────────────
 st.markdown('<p class="sec-label">Image Input</p>', unsafe_allow_html=True)
 
-tab_upload, tab_camera = st.tabs(["Upload Image", "Use Camera"])
+input_mode = st.radio("Input mode", ["Upload Image", "Use Camera"],
+                      horizontal=True, label_visibility="collapsed")
 pil_image = None
 
-with tab_upload:
+if input_mode == "Upload Image":
     uploaded = st.file_uploader(
         "Choose a dermoscopic image (JPG, PNG, WEBP)",
         type=["jpg", "jpeg", "png", "webp"],
@@ -385,8 +397,7 @@ with tab_upload:
     )
     if uploaded:
         pil_image = Image.open(uploaded).convert("RGB")
-
-with tab_camera:
+else:
     camera_shot = st.camera_input("Take a photo", label_visibility="collapsed")
     if camera_shot:
         pil_image = Image.open(camera_shot).convert("RGB")
@@ -394,12 +405,10 @@ with tab_camera:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── Run button ───────────────────────────────────────────────────────────────
-btn_col, _ = st.columns([1, 3])
-with btn_col:
-    run_btn = st.button(
-        "Analyzing…" if st.session_state.get("running") else "Run Prediction",
-        disabled=(pil_image is None or not model_loaded),
-    )
+run_btn = st.button(
+    "Run Prediction",
+    disabled=(pil_image is None or not model_loaded),
+)
 
 if run_btn and pil_image and model_loaded:
     with st.spinner("Running inference…"):
@@ -416,9 +425,9 @@ res_img = st.session_state.get("result_image")
 with left:
     st.markdown('<p class="sec-label">Input</p>', unsafe_allow_html=True)
     if res_img:
-        st.image(res_img, width=380)
+        st.image(res_img, use_container_width=True)
     elif pil_image:
-        st.image(pil_image, width=380)
+        st.image(pil_image, use_container_width=True)
     else:
         st.markdown("<p style='color:#425145;font-size:0.9rem'>No image selected.</p>", unsafe_allow_html=True)
 
@@ -469,7 +478,9 @@ st.markdown("<br>", unsafe_allow_html=True)
 st.markdown('<p class="sec-label">Grad-CAM Explainability</p>', unsafe_allow_html=True)
 
 if res and res.get("gradcam_img"):
-    st.image(res["gradcam_img"], width=480)
+    gcol, _ = st.columns([1, 1])
+    with gcol:
+        st.image(res["gradcam_img"], use_container_width=True)
 elif res:
     st.markdown("<p style='color:#425145;font-size:0.9rem'>Grad-CAM unavailable for this image.</p>", unsafe_allow_html=True)
 else:
