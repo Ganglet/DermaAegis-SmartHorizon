@@ -95,30 +95,30 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 /* ── section label ── */
 .sec-label {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #425145;
+  letter-spacing: 0.1em;
+  color: #1a2a1c;
   margin: 0 0 8px;
   font-weight: 700;
 }
 
 /* ── prediction card ── */
 .pred-name {
-  font-size: 1.25rem;
+  font-size: 1.3rem;
   font-weight: 800;
-  color: #1f2a21;
-  margin: 0 0 4px;
+  color: #1a1a1a;
+  margin: 0 0 6px;
 }
-.pred-meta { color: #425145; font-size: 0.88rem; margin: 0 0 4px; }
+.pred-meta { color: #2a2a2a; font-size: 0.92rem; margin: 0 0 5px; font-weight: 500; }
 .pred-band {
   display: inline-block;
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  color: #6d2d00;
-  background: rgba(255,196,135,0.38);
+  color: #fff;
+  background: linear-gradient(120deg, #da4f38, #f3a949);
   margin-bottom: 14px;
 }
 
@@ -139,9 +139,9 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 .u-warning { font-size: 0.81rem; font-weight: 600; color: #8f2213; margin: 6px 0 0; }
 
 /* ── probability bars ── */
-.prob-row { margin-bottom: 9px; }
-.prob-head { display: flex; justify-content: space-between; font-size: 0.82rem; color: #1f2a21; margin-bottom: 3px; }
-.bar-track { height: 7px; border-radius: 999px; background: rgba(31,42,33,0.11); overflow: hidden; }
+.prob-row { margin-bottom: 10px; }
+.prob-head { display: flex; justify-content: space-between; font-size: 0.84rem; color: #1a1a1a; margin-bottom: 4px; font-weight: 500; }
+.bar-track { height: 8px; border-radius: 999px; background: rgba(31,42,33,0.13); overflow: hidden; }
 .bar-fill  { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #d44d33, #efaa4f); }
 
 /* ── notice ── */
@@ -179,12 +179,12 @@ div.stButton > button:disabled { opacity: 0.45 !important; box-shadow: none !imp
   flex-direction: row !important;
 }
 [data-testid="stRadio"] label {
-  background: rgba(255,255,255,0.75) !important;
+  background: rgba(255,255,255,0.8) !important;
   border: 1.5px solid rgba(31,42,33,0.18) !important;
   border-radius: 10px !important;
-  padding: 8px 18px !important;
+  padding: 8px 20px !important;
   font-weight: 600 !important;
-  font-size: 0.88rem !important;
+  font-size: 0.9rem !important;
   color: #1f2a21 !important;
   cursor: pointer !important;
   transition: all 150ms ease !important;
@@ -194,7 +194,9 @@ div.stButton > button:disabled { opacity: 0.45 !important; box-shadow: none !imp
   border-color: transparent !important;
   color: #fff !important;
 }
-[data-testid="stRadio"] input { display: none !important; }
+/* hide the radio dot — keep only the text */
+[data-testid="stRadio"] input { position: absolute; opacity: 0; width: 0; height: 0; }
+[data-testid="stRadio"] label > div:first-child { display: none !important; }
 
 [data-testid="stFileUploaderDropzone"] {
   background: rgba(255,255,255,0.65) !important;
@@ -209,7 +211,7 @@ section[data-testid="stCameraInputToolbar"] { display: none !important; }
   border-radius: 10px !important;
   border: 1px solid rgba(31,42,33,0.12) !important;
   background: #fff;
-  max-height: 320px !important;
+  max-height: 420px !important;
   object-fit: contain !important;
   width: 100% !important;
 }
