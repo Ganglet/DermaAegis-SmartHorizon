@@ -184,6 +184,12 @@ div.stButton > button:disabled { opacity: 0.55 !important; }
 [data-testid="stTabs"] [data-baseweb="tab"] {
   border-radius: 8px !important;
   font-weight: 600 !important;
+  color: #1f2a21 !important;
+  opacity: 1 !important;
+}
+[data-testid="stTabs"] [data-baseweb="tab"] p {
+  color: #1f2a21 !important;
+  opacity: 1 !important;
 }
 
 section[data-testid="stCameraInputToolbar"] { display: none !important; }
@@ -410,9 +416,9 @@ res_img = st.session_state.get("result_image")
 with left:
     st.markdown('<p class="sec-label">Input</p>', unsafe_allow_html=True)
     if res_img:
-        st.image(res_img, use_container_width=True)
+        st.image(res_img, width=380)
     elif pil_image:
-        st.image(pil_image, use_container_width=True)
+        st.image(pil_image, width=380)
     else:
         st.markdown("<p style='color:#425145;font-size:0.9rem'>No image selected.</p>", unsafe_allow_html=True)
 
@@ -463,9 +469,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 st.markdown('<p class="sec-label">Grad-CAM Explainability</p>', unsafe_allow_html=True)
 
 if res and res.get("gradcam_img"):
-    gcol, _ = st.columns([2, 1])
-    with gcol:
-        st.image(res["gradcam_img"], use_container_width=True)
+    st.image(res["gradcam_img"], width=480)
 elif res:
     st.markdown("<p style='color:#425145;font-size:0.9rem'>Grad-CAM unavailable for this image.</p>", unsafe_allow_html=True)
 else:
