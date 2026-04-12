@@ -3,8 +3,8 @@ title: DermAegis AI
 emoji: 🔬
 colorFrom: red
 colorTo: pink
-sdk: gradio
-sdk_version: "4.44.1"
+sdk: streamlit
+sdk_version: "1.44.1"
 app_file: app.py
 pinned: false
 ---
