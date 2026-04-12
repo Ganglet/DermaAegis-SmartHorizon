@@ -19,6 +19,7 @@ from utils.preprocessing import (
     make_gradcam_heatmap,
     prepare_inference_image,
 )
+from utils.fitzpatrick_bias import estimate_skin_tone_category, generate_bias_report
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "cnn_model.keras")
@@ -279,5 +280,14 @@ async def predict(
         },
         **gradcam_payload,
     }
+
+    # Fitzpatrick skin tone bias analysis
+    try:
+        skin_tone_category = estimate_skin_tone_category(model_input)
+        response["fitzpatrick_analysis"] = generate_bias_report(
+            skin_tone_category, float(probs[top_idx]), dataset_name="ham10000"
+        )
+    except Exception as exc:
+        response["fitzpatrick_analysis_error"] = str(exc)
 
     return response

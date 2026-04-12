@@ -23,6 +23,7 @@ from utils.preprocessing import (
     make_gradcam_heatmap,
     prepare_inference_image,
 )
+from utils.fitzpatrick_bias import estimate_skin_tone_category, generate_bias_report
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -145,6 +146,22 @@ def predict(image: np.ndarray):
     ]
     if uncertainty_level == "High":
         lines.append("\n> ⚠️ High uncertainty — specialist review strongly recommended.")
+
+    # Fitzpatrick skin tone bias analysis
+    try:
+        skin_tone_category = estimate_skin_tone_category(model_input)
+        bias = generate_bias_report(skin_tone_category, confidence, dataset_name="ham10000")
+        lines.append(
+            f"\n---\n### Fitzpatrick Skin Tone Analysis\n"
+            f"**Detected:** {bias['skin_tone_name']}  \n"
+            f"**Training representation:** {bias['training_representation']} of HAM10000  \n"
+            f"**Reliability:** {bias['reliability_level']}  \n"
+            f"**Adjusted confidence:** {bias['adjusted_confidence']}"
+        )
+        if bias["bias_warning"]:
+            lines.append(f"\n{bias['bias_warning']}")
+    except Exception:
+        pass
 
     lines.append("\n---\n### Class Probabilities\n")
     sorted_probs = sorted(
