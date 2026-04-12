@@ -51,7 +51,7 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 
 [data-testid="stHeader"]  { background: transparent !important; }
 [data-testid="stSidebar"] { display: none; }
-#MainMenu, footer         { visibility: hidden; }
+#MainMenu, footer, [data-testid="stToolbar"] { visibility: hidden; }
 
 /* ── typography ── */
 .da-title {
