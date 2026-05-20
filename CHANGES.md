@@ -252,3 +252,90 @@ In `models/`:
 - Evaluation (TTA, both splits): ~20 minutes
 
 Recommendation for next training run: use Google Colab Pro / Kaggle GPU. The same training would take ~1 hour on a T4 GPU.
+
+---
+
+# Docker Containerization — May 20-21, 2026
+
+The repository already had `Dockerfile`, `docker-compose.yml`, `frontend/Dockerfile`, and `.dockerignore`, but they were broken in five different ways. Fixed all of them and got a working `docker-compose up` containerized prototype.
+
+## Issues found and fixed
+
+### 1. Model file was being excluded from the image
+
+`.dockerignore` had `models/*.keras`, which meant the trained model was *not* copied into the API container. Backend started successfully but `/predict` crashed with "model not found."
+
+**Fix:** narrowed the exclusion to only intermediate checkpoints, allowing `cnn_model.keras` to be bundled:
+
+```
+models/*.best.keras
+models/*.final.keras
+models/*.h5
+```
+
+Also added `dataset/`, `.git/`, `node_modules/`, `*.docx` exclusions. **Build context shrank from 3.17 GB to ~150 MB** (saves several minutes per build over a slow connection).
+
+### 2. `requirements.txt` was missing FastAPI/uvicorn/python-multipart
+
+The file only had Streamlit + the ML stack. The Docker image would build but `uvicorn api.main:app` would crash with `ModuleNotFoundError`.
+
+**Fix:** added the API dependencies:
+
+```
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.27,<1.0
+python-multipart>=0.0.9,<1.0
+```
+
+### 3. TensorFlow version mismatch (Keras 2 vs Keras 3)
+
+The model was trained on TF 2.21 (Keras 3 format), but `requirements.txt` pinned `tensorflow-cpu==2.15.0` (Keras 2). The `.keras` checkpoint would fail to load.
+
+**Fix:** bumped to `tensorflow>=2.16,<2.20` and `keras>=3.0,<4.0`.
+
+**Secondary issue:** `tensorflow-cpu` has no ARM64 Linux wheels, which broke Docker builds on Apple Silicon. Switched to plain `tensorflow` which auto-detects CPU/GPU at runtime and has wheels for both architectures.
+
+### 4. Debian mirror returning 403 Forbidden
+
+The original Dockerfile ran `apt-get install` to add OpenCV system libs. The default `python:3.10-slim` had just rolled to Debian 13 (trixie), whose Fastly mirror was returning 403 from this network.
+
+**Fix:** removed the `apt-get` step entirely. The `opencv-python-headless` package bundles its own libs (that's the whole point of "headless"), so no system OpenCV deps are needed. Also pinned to `python:3.10-slim-bookworm` (Debian 12) for stability. Replaced the `curl`-based healthcheck with a Python `urllib` one so no extra OS tools are needed.
+
+### 5. Broken `docker-compose.yml` config
+
+- Had a bogus `/app/node_modules` volume mount on the API container (the API is Python, not Node)
+- A `.:/app` bind mount overlay defeated the purpose of baking the model into the image
+- No healthchecks, so the frontend would start before the API was ready
+- No build args for the frontend to know which API URL to hit
+
+**Fix:**
+- Removed the bind mount and bogus `node_modules` volume
+- Added a `python -c urllib.request` healthcheck on the API
+- Added `depends_on: api: condition: service_started` so the frontend waits
+- Added `VITE_API_BASE` build arg to the frontend service (defaults to `http://127.0.0.1:8000` for local docker-compose)
+
+## Files Changed
+
+- `.dockerignore` — narrowed model exclusion, added dataset/.git/docx/node_modules exclusions
+- `Dockerfile` (root) — dropped apt-get, pinned to bookworm, switched healthcheck to Python urllib
+- `frontend/Dockerfile` — added `VITE_API_BASE` build arg
+- `docker-compose.yml` — removed broken volumes, added healthchecks, fixed depends_on, threaded build arg through
+- `requirements.txt` — added FastAPI stack, bumped TF to a Keras 3 compatible range, switched off the `-cpu` variant for ARM64 compatibility
+
+## How to run
+
+```bash
+docker-compose up --build
+```
+
+After build completes (~5–10 min depending on network — TensorFlow is a 252 MB wheel):
+
+- Frontend: http://localhost:3000
+- API: http://localhost:8000
+- API health: http://localhost:8000/health
+
+Both containers expose healthchecks visible in Docker Desktop. The frontend nginx serves the built React bundle; the API runs `uvicorn` and auto-loads `models/cnn_model.keras` on startup.
+
+## Verified working
+
+Containers running, both healthchecks returning 200 OK, API serving predictions through the React frontend at http://localhost:3000.

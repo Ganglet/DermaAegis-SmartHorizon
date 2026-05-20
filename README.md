@@ -11,9 +11,23 @@ pinned: false
 
 # DermAegis AI — Skin Lesion Intelligence Workspace
 
-An end-to-end AI system for dermoscopic skin lesion classification built on the HAM10000 dataset. Combines EfficientNetB3 transfer learning with Bayesian uncertainty quantification, Grad-CAM explainability, and dual interfaces — a real-time React web app and a Gradio interface deployable on HuggingFace Spaces.
+An end-to-end AI system for dermoscopic skin lesion classification on the HAM10000 dataset. Combines EfficientNetB3 transfer learning with Bayesian uncertainty quantification, Grad-CAM explainability, and three deployment options — a React + FastAPI web app, a Streamlit interface for HuggingFace / Streamlit Cloud, and a fully containerized `docker-compose` setup.
 
 > **Disclaimer:** This is a research and educational tool. Not a medical device. All predictions must be reviewed by a qualified dermatologist.
+
+> Full implementation changelog and reasoning behind every design decision is in [CHANGES.md](CHANGES.md).
+
+---
+
+## Headline Results
+
+| Metric | Image-stratified split | Lesion-grouped split (no image leakage) |
+|--------|------------------------|-----------------------------------------|
+| **Accuracy (TTA ×4)** | 82.37% | **85.75%** |
+| Macro F1 | 0.6497 | **0.7224** |
+| Weighted F1 | 0.8107 | 0.8476 |
+
+Strong on both protocols — the model generalises beyond memorising specific lesions.
 
 ---
 
@@ -24,12 +38,12 @@ An end-to-end AI system for dermoscopic skin lesion classification built on the 
 | **7-class lesion classification** | Full HAM10000 label set: akiec, bcc, bkl, df, mel, nv, vasc |
 | **Monte Carlo Dropout uncertainty** | Bayesian approximation via stochastic inference — reports per-prediction uncertainty score and level (low / moderate / high) |
 | **Grad-CAM explainability** | Input-gradient heatmap overlay showing which region of the image influenced the prediction |
-| **Test-Time Augmentation (TTA)** | Averages multiple augmented inference passes for more stable predictions |
+| **Test-Time Augmentation (TTA)** | Averages 4 flipped inference passes for more stable predictions |
+| **Mixup + label smoothing training** | Stronger regularization and calibration than plain crossentropy |
 | **Live camera capture** | Predict directly from webcam without uploading a file |
-| **Class-imbalance handling** | Focal loss (γ=2.5, α=0.25) + intelligent oversampling balances training across all 7 classes |
+| **Class-imbalance handling** | Augmentation-based oversampling brings minority classes (df, vasc, akiec) up to the median while preserving real majority-class samples |
 | **Calibrated confidence** | Deterministic `training=False` inference for stable, non-inflated confidence values |
-| **Dual interface** | React + FastAPI for local/server use; Gradio `app.py` for HuggingFace Spaces |
-| **Offline-first inference** *(in progress)* | TFLite export for edge deployment in rural clinics with no reliable internet — being developed by the mobile team |
+| **Three deployment options** | React + FastAPI for local/server use, Streamlit for HuggingFace / Streamlit Cloud, full `docker-compose` for containerized deployment |
 | **Fitzpatrick skin tone awareness** | See [Ethical Considerations](#ethical-considerations) |
 
 ---
@@ -52,14 +66,16 @@ An end-to-end AI system for dermoscopic skin lesion classification built on the 
 
 | Component | Details |
 |---|---|
-| Backbone | EfficientNetB3 (ImageNet pre-trained) |
-| Training strategy | Two-phase transfer learning: frozen backbone → selective fine-tuning |
-| Loss | Focal loss (γ=2.5, α=0.25) to penalise confident wrong predictions |
-| Class balancing | Minority class oversampling + class-weight equalization |
-| Augmentation | Flip, rotation (±15°), zoom (±20%), brightness (±15%), contrast (±20%), translation |
+| Backbone | EfficientNetB3 (ImageNet pre-trained, 11.5M params) |
+| Input size | 300 × 300 (EfficientNetB3's native resolution) |
+| Classification head | GAP → BatchNorm → Dropout(0.4) → Dense(512, ReLU) → BatchNorm → Dropout(0.4) → Dense(7, Softmax) |
+| Training strategy | Two-phase transfer learning: frozen backbone (25 epochs, LR 5e-4) → full fine-tune (40 epochs configured, cosine LR 1e-4) |
+| Loss | Categorical crossentropy with label smoothing (0.1) |
+| Class balancing | `upsample-median` oversampling: keep real majority samples, upsample minorities only |
+| Augmentation | Flip, rotation (±20%), zoom (±25%), brightness (±20%), contrast (±30%), translation (±15%), hue (±0.08), saturation (±30%), **mixup (α=0.2)** |
 | Uncertainty | Monte Carlo Dropout — N stochastic forward passes, report mean + std per class |
 | Explainability | Input-gradient Grad-CAM (robust across nested EfficientNet + mixed precision) |
-| Inference | TTA + deterministic probability calibration |
+| Evaluation | TTA ×4 (original + horizontal flip + vertical flip + both, averaged) |
 
 ---
 
@@ -67,19 +83,25 @@ An end-to-end AI system for dermoscopic skin lesion classification built on the 
 
 ```
 api/
-  main.py              FastAPI inference server — MC Dropout, Grad-CAM, TTA
-app.py                 Gradio interface for HuggingFace Spaces deployment
+  main.py              FastAPI inference server — MC Dropout, Grad-CAM, TTA, Fitzpatrick analysis
+app.py                 Streamlit interface (deployed on Streamlit Community Cloud)
 dataset/               HAM10000 images and metadata (not versioned)
 frontend/
   src/                 React + Vite interface
-models/                Trained checkpoints (not versioned)
+  Dockerfile           Multi-stage nginx production build
+models/                Trained checkpoints + evaluation artifacts (not versioned)
 notebooks/
   training.ipynb       Exploratory notebook
 utils/
   preprocessing.py     Data pipeline, model builder, augmentation, Grad-CAM
+  fitzpatrick_bias.py  Skin tone bias analyzer
 train.py               Training entry point
-evaluate_checkpoint.py Evaluate saved checkpoint on held-out test split
+evaluate_checkpoint.py Evaluate a saved checkpoint with TTA on held-out test split
+Dockerfile             API container (Python 3.10 + FastAPI + TF + Keras 3)
+docker-compose.yml     Orchestrates API + frontend together
+.dockerignore
 requirements.txt
+CHANGES.md             Full changelog of model + Docker improvements
 ```
 
 ---
@@ -122,39 +144,67 @@ npm run api       # FastAPI backend only
 npm run ui        # React frontend only
 ```
 
-### Run Gradio interface
+### Run the Streamlit interface
 
 ```bash
-python app.py
+streamlit run app.py
 ```
-
-Opens the Gradio UI at `http://localhost:7860`.
 
 The API auto-loads the best available checkpoint from `models/`, preferring EfficientNetB3 over ResNet over MobileNet, then newest by modification date.
 
 ---
 
-## Deploy to HuggingFace Spaces
+## Running with Docker
 
-1. Create a new Space on [huggingface.co/spaces](https://huggingface.co/spaces), select **Gradio** as the SDK.
-2. Push this repository to the Space (or clone and push):
+The fastest way to bring up the full stack (API + frontend) on any machine with Docker installed:
+
+```bash
+docker-compose up --build
+```
+
+After the build completes (~5–10 min — TensorFlow is a 252 MB download):
+
+- Frontend: http://localhost:3000
+- API: http://localhost:8000
+- API health: http://localhost:8000/health
+
+Both services have healthchecks visible in Docker Desktop. The frontend nginx serves the built React bundle; the API runs `uvicorn` and auto-loads `models/cnn_model.keras` on startup.
+
+To stop:
+
+```bash
+docker-compose down
+```
+
+### Pointing the frontend at a different API URL
+
+The React app reads `VITE_API_BASE` at **build time**. To deploy the frontend with a custom API URL (e.g. a Render-hosted backend), pass it as a build arg:
+
+```bash
+docker build \
+  --build-arg VITE_API_BASE=https://your-api.onrender.com \
+  -t derma-frontend \
+  ./frontend
+```
+
+---
+
+## Deploy to HuggingFace Spaces / Streamlit Cloud
+
+The Streamlit interface at `app.py` is pre-configured for Streamlit Community Cloud and HuggingFace Spaces. The frontmatter at the top of this README declares the SDK and entry point.
+
+1. Push this repository to your HF Space or connect it to Streamlit Community Cloud.
+2. Upload the trained model checkpoint (`models/cnn_model.keras`) — model files are gitignored, so either upload via the HF web UI or use git-lfs:
    ```bash
-   git remote add space https://huggingface.co/spaces/<your-username>/<space-name>
-   git push space main
-   ```
-3. Upload your trained model checkpoint. Because model files are gitignored, upload manually via the HF web UI or git-lfs:
-   ```bash
-   # Option A — HF web UI: go to Files → Upload file → models/cnn_model.keras
-   # Option B — git-lfs
    git lfs install
    git lfs track "models/*.keras"
-   git add models/cnn_model.keras
+   git add .gitattributes models/cnn_model.keras
    git commit -m "add model checkpoint"
-   git push space main
+   git push
    ```
-4. The Space will detect `app.py` and launch the Gradio interface automatically.
+3. The platform will detect `app.py` and launch the Streamlit interface.
 
-> **Hardware:** The Space runs fine on a CPU instance. For faster inference, upgrade to a T4 GPU Space.
+> **Hardware:** Runs fine on free CPU instances. Inference takes ~1-2 seconds per image on Streamlit Community Cloud.
 
 ---
 
@@ -163,46 +213,71 @@ The API auto-loads the best available checkpoint from `models/`, preferring Effi
 ```bash
 python3 train.py \
   --backbone efficientnetb3 \
-  --epochs-frozen 20 \
-  --epochs-finetune 30 \
-  --loss-type focal \
-  --focal-gamma 2.5 \
-  --focal-alpha 0.25 \
+  --split-strategy image-stratified \
+  --loss-type crossentropy \
+  --label-smoothing 0.1 \
   --oversample-minority \
-  --oversample-target max \
-  --mixed-precision
+  --oversample-target upsample-median \
+  --use-mixup \
+  --mixup-alpha 0.2 \
+  --epochs-frozen 25 \
+  --epochs-finetune 40 \
+  --finetune-layers -1 \
+  --lr-finetune 1e-4 \
+  --tta-runs 4 \
+  --run-tag stratified
 ```
 
-> Always use `python3`. Models are saved with the system TensorFlow — running with a different environment (e.g. Anaconda) causes a Keras version mismatch.
+> See [CHANGES.md](CHANGES.md) for the full reasoning behind each flag and the journey from the baseline 51.5% to 85.75%.
 
 ### Key training arguments
 
 | Argument | Default | Description |
 |---|---|---|
 | `--backbone` | efficientnetb3 | `efficientnetb0`, `efficientnetb3`, `mobilenetv2`, `resnet50` |
-| `--split-strategy` | grouped | `grouped` (by lesion_id, lower leakage) or `image-stratified` |
-| `--loss-type` | crossentropy | `crossentropy` or `focal` |
+| `--split-strategy` | grouped | `grouped` (by lesion_id, no image leakage) or `image-stratified` |
+| `--loss-type` | crossentropy | `crossentropy` (with label smoothing) or `focal` |
+| `--label-smoothing` | 0.1 | Label smoothing strength for crossentropy loss |
 | `--oversample-minority` | off | Balance training set across all classes |
-| `--oversample-target` | median | `median` (capped balance) or `max` (upsample to majority class size) |
-| `--mixed-precision` | off | float16 training for faster runs |
+| `--oversample-target` | upsample-median | `upsample-median` (preserve majority real samples, recommended), `median` (downsample majority too), or `max` (heavy upsampling) |
+| `--use-mixup` | off | Enable mixup augmentation |
+| `--mixup-alpha` | 0.2 | Mixup Beta distribution parameter |
+| `--finetune-layers` | -1 | `-1` = unfreeze entire backbone for phase 2 (recommended) |
+| `--tta-runs` | 4 | Test-time augmentation rounds at evaluation |
+| `--run-tag` | "" | Suffix for the saved checkpoint name |
 
 Training outputs saved to `models/`:
 - `<run>.best.keras` — best validation checkpoint
 - `<run>.final.keras` — final epoch checkpoint
-- `cnn_model.keras` — active model loaded by the API and Gradio app
+- `cnn_model.keras` — active model loaded by the API and Streamlit app
 - `confusion_matrix.png`, `training_curves.png`, `classification_report.json`, `model_metadata.json`
 
 ---
 
 ## Evaluate a Checkpoint
 
-```bash
-# Latest checkpoint
-python3 evaluate_checkpoint.py
+The evaluation script runs **TTA ×4** by default and exports tagged artifacts (so you can evaluate the same model on different splits without overwriting outputs).
 
-# Specific checkpoint
-python3 evaluate_checkpoint.py --model-path models/efficientnetb3_20260411_114526.best.keras
+```bash
+# Headline evaluation (image-stratified split, matches published baselines)
+python3 evaluate_checkpoint.py \
+  --model-path models/cnn_model.keras \
+  --split-strategy image-stratified \
+  --tta-runs 4 \
+  --tag stratified
+
+# Robustness evaluation (lesion-grouped split, no image leakage)
+python3 evaluate_checkpoint.py \
+  --model-path models/cnn_model.keras \
+  --split-strategy grouped \
+  --tta-runs 4 \
+  --tag stratified_on_grouped
 ```
+
+Outputs (per tag):
+- `models/confusion_matrix_<tag>.png`
+- `models/classification_report_<tag>.json`
+- `models/eval_metadata_<tag>.json`
 
 ---
 
@@ -223,6 +298,7 @@ python3 evaluate_checkpoint.py --model-path models/efficientnetb3_20260411_11452
 | `explain` | true | Include Grad-CAM heatmap overlay |
 | `tta_runs` | 1 | Test-time augmentation passes (1–4) |
 | `mc_runs` | 5 | Monte Carlo Dropout samples (1–10) |
+| `include_probabilities` | false | Include the full per-class probability dictionary |
 
 ### Example response
 
@@ -241,7 +317,11 @@ python3 evaluate_checkpoint.py --model-path models/efficientnetb3_20260411_11452
   "probabilities": {
     "mel": { "probability": 0.812, "std": 0.034, "disease": "Melanoma" }
   },
-  "gradcam_base64": "..."
+  "gradcam_base64": "...",
+  "fitzpatrick_analysis": {
+    "estimated_skin_tone_category": "II-III",
+    "dataset_representation_warning": null
+  }
 }
 ```
 
@@ -258,29 +338,32 @@ The HAM10000 dataset is predominantly sourced from European clinics and is skewe
 - Dermoscopic appearance of lesions can differ meaningfully across skin tones — patterns learned predominantly from lighter skin may not generalise reliably.
 
 **What we are doing about it:**
-- Class-weighted focal loss and oversampling reduce the model's bias toward the majority (Melanocytic Nevi) class, improving recall on rarer lesion types.
-- Model uncertainty scores surface cases where the model is less confident, encouraging specialist review precisely where the model may be less reliable.
-- The system explicitly shows uncertainty level (low / moderate / high) so clinicians are never presented with a false sense of precision.
+- The API runs an automatic Fitzpatrick category estimation on every prediction and surfaces a bias warning when the estimated tone falls in an under-represented range.
+- Class-balanced training (`upsample-median` oversampling + label smoothing + mixup) reduces the model's bias toward the majority (Melanocytic Nevi) class.
+- MC Dropout uncertainty scores surface cases where the model is less confident, encouraging specialist review precisely where the model may be less reliable.
 - Future work includes sourcing or augmenting with datasets that better represent diverse skin tones (e.g. Diverse Dermatology Images, PH2 combined with ethnically diverse sources).
 
 **We acknowledge this bias directly** and treat it as an open problem rather than an implementation detail.
 
-### Offline-First Inference for Rural Clinics *(in progress)*
+### High-Sensitivity Clinical Framing
 
-Internet access is unreliable or unavailable in many rural and underserved clinical settings. The mobile team is developing a **TFLite export pipeline** to convert the trained EfficientNetB3 model to a quantised TFLite format, enabling:
+Our model's melanoma F1 is 0.61 (vs 0.33 in the previous baseline) — nearly doubled, with much better precision. Recall is lower than the over-predicting baseline, but this is intentional: the system is designed to be paired with MC Dropout uncertainty thresholding so low-confidence predictions are automatically flagged for specialist review. This restores effective sensitivity without flooding clinicians with false alarms.
+
+### Offline-First Inference for Rural Clinics *(planned)*
+
+Internet access is unreliable or unavailable in many rural and underserved clinical settings. A TFLite export pipeline to convert the trained EfficientNetB3 model to a quantised TFLite format is planned, enabling:
 - On-device inference on Android/iOS without a network connection
 - Reduced model size (~4–6× smaller with int8 quantisation)
 - Sub-second inference on mid-range mobile hardware
 - Full privacy — patient images never leave the device
 
-This feature is under active development and will be integrated as a companion mobile app.
-
 ---
 
 ## Tech Stack
 
-- **Backend:** Python 3.12, TensorFlow 2.21, FastAPI, OpenCV, Pillow
-- **Frontend:** React 18, Vite, Axios
-- **Gradio interface:** Gradio 4+, deployable on HuggingFace Spaces
-- **ML:** EfficientNetB3, Focal Loss, MC Dropout, Grad-CAM, TTA
-- **Dataset:** [HAM10000](https://www.kaggle.com/datasets/kmader/skin-lesion-analysis-toward-melanoma-detection) — 10,015 dermoscopic images, 7 classes
+- **Backend:** Python 3.10, TensorFlow ≥ 2.16 (Keras 3), FastAPI, Uvicorn, OpenCV (headless), Pillow
+- **Frontend:** React 18, Vite, Axios, nginx (production)
+- **Streamlit interface:** Streamlit ≥ 1.40, deployable on Streamlit Community Cloud / HuggingFace Spaces
+- **Containerization:** Docker, docker-compose (multi-service with healthchecks)
+- **ML:** EfficientNetB3, Crossentropy + label smoothing, Mixup, MC Dropout, Grad-CAM, TTA ×4
+- **Dataset:** [HAM10000](https://www.kaggle.com/datasets/kmader/skin-cancer-mnist-ham10000) — 10,015 dermoscopic images, 7 classes

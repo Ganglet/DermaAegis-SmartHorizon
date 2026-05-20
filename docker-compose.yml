@@ -1,28 +1,32 @@
-version: '3.8'
-
 services:
   api:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     container_name: derma_api
     ports:
       - "8000:8000"
-    volumes:
-      - .:/app
-      - /app/node_modules
     environment:
       - ENVIRONMENT=development
       - MODEL_PATH=models/cnn_model.keras
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: http://127.0.0.1:8000
     container_name: derma_frontend
     ports:
       - "3000:80"
     depends_on:
-      - api
+      api:
+        condition: service_started
     restart: unless-stopped
