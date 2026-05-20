@@ -1,14 +1,3 @@
----
-title: DermAegis AI
-emoji: 🔬
-colorFrom: red
-colorTo: pink
-sdk: streamlit
-sdk_version: "1.44.1"
-app_file: app.py
-pinned: false
----
-
 # DermAegis AI — Skin Lesion Intelligence Workspace
 
 An end-to-end AI system for dermoscopic skin lesion classification on the HAM10000 dataset. Combines EfficientNetB3 transfer learning with Bayesian uncertainty quantification, Grad-CAM explainability, and three deployment options — a React + FastAPI web app, a Streamlit interface for HuggingFace / Streamlit Cloud, and a fully containerized `docker-compose` setup.
