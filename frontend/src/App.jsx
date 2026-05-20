@@ -223,7 +223,17 @@ function App() {
 
           <article className="card">
             <h2>Prediction</h2>
-            {result ? (
+            {isLoading ? (
+              <div className="skeleton-content">
+                <div className="skeleton skeleton-text skeleton-text-large" />
+                <div className="skeleton skeleton-text" />
+                <div className="skeleton skeleton-text skeleton-text-short" />
+                <div className="skeleton skeleton-box" />
+                <div className="skeleton skeleton-text" />
+                <div className="skeleton skeleton-text" />
+                <div className="skeleton skeleton-text" />
+              </div>
+            ) : result ? (
               <>
                 <p className="prediction-label">{result.predicted_disease}</p>
                 <p className="prediction-meta">Label: {result.predicted_label}</p>
@@ -270,7 +280,9 @@ function App() {
 
           <article className="card card-wide">
             <h2>Grad-CAM Explainability</h2>
-            {result?.gradcam_base64 ? (
+            {isLoading ? (
+              <div className="skeleton skeleton-image" />
+            ) : result?.gradcam_base64 ? (
               <img className="preview" src={`data:image/png;base64,${result.gradcam_base64}`} alt="Grad CAM" />
             ) : result && !result.gradcam_base64 ? (
               <p>Grad-CAM unavailable for this image.</p>
@@ -278,6 +290,47 @@ function App() {
               <p>Heatmap will appear after prediction.</p>
             )}
           </article>
+
+          {(result?.fitzpatrick_analysis || isLoading) && (
+            <article className="card card-wide">
+              <h2>Fitzpatrick Skin Tone Analysis</h2>
+              {isLoading ? (
+                <div className="skeleton-content">
+                  <div className="skeleton skeleton-text" />
+                  <div className="skeleton skeleton-text" />
+                  <div className="skeleton skeleton-text skeleton-text-short" />
+                </div>
+              ) : result?.fitzpatrick_analysis ? (
+                <div className="fitzpatrick-content">
+                  <div className="fitzpatrick-category">
+                    <p className="fitzpatrick-label">Detected Skin Tone</p>
+                    <p className="fitzpatrick-value">{result.fitzpatrick_analysis.skin_tone_category}</p>
+                  </div>
+                  {result.fitzpatrick_analysis.bias_warning && (
+                    <div className="fitzpatrick-warning">
+                      <p className="warning-icon">⚠️</p>
+                      <div>
+                        <p className="warning-title">Bias Warning</p>
+                        <p className="warning-text">{result.fitzpatrick_analysis.bias_warning}</p>
+                      </div>
+                    </div>
+                  )}
+                  {result.fitzpatrick_analysis.recommendation && (
+                    <div className="fitzpatrick-recommendation">
+                      <p className="recommendation-title">Recommendation</p>
+                      <p className="recommendation-text">{result.fitzpatrick_analysis.recommendation}</p>
+                    </div>
+                  )}
+                  {result.fitzpatrick_analysis.dataset_representation && (
+                    <div className="fitzpatrick-stats">
+                      <p className="stats-label">Dataset Representation</p>
+                      <p className="stats-value">{(result.fitzpatrick_analysis.dataset_representation * 100).toFixed(1)}%</p>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </article>
+          )}
         </div>
 
         <div className="notice">
