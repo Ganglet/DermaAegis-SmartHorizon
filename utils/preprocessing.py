@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 
 
-IMAGE_SIZE = (224, 224)
+IMAGE_SIZE = (300, 300)
 NUM_CLASSES = 7
 BATCH_SIZE = 32
 AUTOTUNE = tf.data.AUTOTUNE
@@ -241,14 +241,34 @@ def get_augmentation_layer() -> tf.keras.Sequential:
     return tf.keras.Sequential(
         [
             tf.keras.layers.RandomFlip("horizontal_and_vertical"),
-            tf.keras.layers.RandomRotation(0.15),
-            tf.keras.layers.RandomZoom(0.2),
-            tf.keras.layers.RandomContrast(0.2),
-            tf.keras.layers.RandomBrightness(0.15),
-            tf.keras.layers.RandomTranslation(height_factor=0.1, width_factor=0.1),
+            tf.keras.layers.RandomRotation(0.2),
+            tf.keras.layers.RandomZoom(0.25),
+            tf.keras.layers.RandomContrast(0.3),
+            tf.keras.layers.RandomBrightness(0.2),
+            tf.keras.layers.RandomTranslation(height_factor=0.15, width_factor=0.15),
+            tf.keras.layers.RandomSaturation(0.3),
+            tf.keras.layers.RandomHue(0.08),
         ],
         name="augment",
     )
+
+
+def _mixup_batch(images: tf.Tensor, labels: tf.Tensor, alpha: float = 0.2, num_classes: int = NUM_CLASSES):
+    """Mixup: blend pairs of images in a batch. Returns soft labels."""
+    batch_size = tf.shape(images)[0]
+    labels_oh = tf.one_hot(tf.cast(labels, tf.int32), depth=num_classes)
+
+    beta_dist = tf.compat.v1.distributions.Beta(alpha, alpha)
+    lam = beta_dist.sample(1)[0]
+    lam = tf.maximum(lam, 1.0 - lam)
+
+    shuffled_idx = tf.random.shuffle(tf.range(batch_size))
+    images_shuffled = tf.gather(images, shuffled_idx)
+    labels_shuffled = tf.gather(labels_oh, shuffled_idx)
+
+    mixed_images = lam * images + (1.0 - lam) * images_shuffled
+    mixed_labels = lam * labels_oh + (1.0 - lam) * labels_shuffled
+    return mixed_images, mixed_labels
 
 
 def build_tf_dataset(
@@ -257,6 +277,9 @@ def build_tf_dataset(
     batch_size: int = BATCH_SIZE,
     shuffle: bool = False,
     augment: bool = False,
+    mixup: bool = False,
+    mixup_alpha: float = 0.2,
+    to_one_hot: bool = False,
     seed: int = 42,
 ) -> tf.data.Dataset:
     paths = dataframe["image_path"].astype(str).values
@@ -275,7 +298,20 @@ def build_tf_dataset(
             num_parallel_calls=AUTOTUNE,
         )
 
+    if to_one_hot and not mixup:
+        dataset = dataset.map(
+            lambda x, y: (x, tf.one_hot(tf.cast(y, tf.int32), depth=NUM_CLASSES)),
+            num_parallel_calls=AUTOTUNE,
+        )
+
     dataset = dataset.batch(batch_size).prefetch(AUTOTUNE)
+
+    if mixup:
+        dataset = dataset.map(
+            lambda x, y: _mixup_batch(x, y, alpha=mixup_alpha, num_classes=NUM_CLASSES),
+            num_parallel_calls=AUTOTUNE,
+        )
+
     return dataset
 
 
@@ -307,7 +343,7 @@ def build_transfer_model(
     backbone: str = "efficientnetb0",
     image_size: tuple[int, int] = IMAGE_SIZE,
     num_classes: int = NUM_CLASSES,
-    dropout: float = 0.35,
+    dropout: float = 0.4,
     lr: float = 1e-3,
 ) -> tuple[tf.keras.Model, tf.keras.Model]:
     """Build and compile a transfer-learning classifier and return (model, base_model)."""
@@ -330,7 +366,7 @@ def build_transfer_model(
     x = tf.keras.layers.GlobalAveragePooling2D()(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Dropout(dropout)(x)
-    x = tf.keras.layers.Dense(256, activation="relu")(x)
+    x = tf.keras.layers.Dense(512, activation="relu")(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Dropout(dropout)(x)
     outputs = tf.keras.layers.Dense(
@@ -350,7 +386,12 @@ def build_transfer_model(
 
 
 def unfreeze_last_layers(base_model: tf.keras.Model, trainable_layers: int = 30) -> None:
+    """Unfreeze the last N layers of the backbone. trainable_layers=-1 unfreezes all layers."""
     base_model.trainable = True
+    if trainable_layers == -1:
+        for layer in base_model.layers:
+            layer.trainable = True
+        return
     if trainable_layers <= 0:
         return
     for layer in base_model.layers[:-trainable_layers]:
