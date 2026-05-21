@@ -28,10 +28,12 @@ MODEL_META_PATH = os.path.join(PROJECT_ROOT, "models", "model_metadata.json")
 app = FastAPI(title="Skin Cancer Detection API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:[0-9]+)?|https://.*\.vercel\.app|https://derma-aegis-smart-horizon\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
 
 
