@@ -1,0 +1,66 @@
+[
+  {
+    "rank": 1,
+    "true_label": "mel",
+    "predicted_label": "bkl",
+    "true_disease": "Melanoma",
+    "predicted_disease": "Benign Keratosis",
+    "confidence": 0.8447,
+    "image_filename": "ISIC_0025188.jpg",
+    "image_id": "ISIC_0025188",
+    "files": {
+      "combined": "case_1_mel_as_bkl.png",
+      "gradcam_only": "case_1_mel_as_bkl_gradcam_only.png",
+      "original": "case_1_mel_as_bkl_original.png"
+    },
+    "explanation": "TODO \u2014 fill in why the model failed (hair, contrast, ambiguous boundary, etc.)"
+  },
+  {
+    "rank": 2,
+    "true_label": "mel",
+    "predicted_label": "nv",
+    "true_disease": "Melanoma",
+    "predicted_disease": "Melanocytic Nevi",
+    "confidence": 0.8314,
+    "image_filename": "ISIC_0032603.jpg",
+    "image_id": "ISIC_0032603",
+    "files": {
+      "combined": "case_2_mel_as_nv.png",
+      "gradcam_only": "case_2_mel_as_nv_gradcam_only.png",
+      "original": "case_2_mel_as_nv_original.png"
+    },
+    "explanation": "TODO \u2014 fill in why the model failed (hair, contrast, ambiguous boundary, etc.)"
+  },
+  {
+    "rank": 3,
+    "true_label": "mel",
+    "predicted_label": "bkl",
+    "true_disease": "Melanoma",
+    "predicted_disease": "Benign Keratosis",
+    "confidence": 0.8268,
+    "image_filename": "ISIC_0032258.jpg",
+    "image_id": "ISIC_0032258",
+    "files": {
+      "combined": "case_3_mel_as_bkl.png",
+      "gradcam_only": "case_3_mel_as_bkl_gradcam_only.png",
+      "original": "case_3_mel_as_bkl_original.png"
+    },
+    "explanation": "TODO \u2014 fill in why the model failed (hair, contrast, ambiguous boundary, etc.)"
+  },
+  {
+    "rank": 4,
+    "true_label": "mel",
+    "predicted_label": "bkl",
+    "true_disease": "Melanoma",
+    "predicted_disease": "Benign Keratosis",
+    "confidence": 0.8063,
+    "image_filename": "ISIC_0030324.jpg",
+    "image_id": "ISIC_0030324",
+    "files": {
+      "combined": "case_4_mel_as_bkl.png",
+      "gradcam_only": "case_4_mel_as_bkl_gradcam_only.png",
+      "original": "case_4_mel_as_bkl_original.png"
+    },
+    "explanation": "TODO \u2014 fill in why the model failed (hair, contrast, ambiguous boundary, etc.)"
+  }
+]
