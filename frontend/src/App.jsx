@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
+// Use window.location.hostname to automatically use the correct IP (works for localhost and network access)
+const API_BASE = import.meta.env.VITE_API_BASE || `http://${window.location.hostname}:8000`;
 
 function App() {
   const [file, setFile] = useState(null);
@@ -17,6 +18,7 @@ function App() {
   const [cameraError, setCameraError] = useState("");
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -84,16 +86,122 @@ function App() {
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  async function refreshModelCheckpoint() {
-    try {
-      await axios.post(`${API_BASE}/reload-model`);
-      const health = await axios.get(`${API_BASE}/health`);
-      setApiHealth(health.data);
-      setHealthError("");
-    } catch (err) {
-      setHealthError(err.message || "Failed to reload model");
+  useEffect(() => {
+    const root = document.documentElement;
+    const canvas = canvasRef.current;
+    const cursor = document.querySelector(".cursor-ring");
+    const cursorTrail = document.querySelector(".cursor-trail");
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx || !cursor || !cursorTrail) return undefined;
+
+    let mouseX = window.innerWidth / 2;
+    let mouseY = window.innerHeight / 2;
+    let trailX = mouseX;
+    let trailY = mouseY;
+    let particles = [];
+    let frameId;
+
+    function resize() {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = window.innerWidth * ratio;
+      canvas.height = window.innerHeight * ratio;
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      particles = Array.from({ length: Math.min(76, Math.floor(window.innerWidth / 20)) }, () => ({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        vx: (Math.random() - 0.5) * 0.18,
+        vy: (Math.random() - 0.5) * 0.18,
+        size: Math.random() * 1.8 + 0.6,
+        hue: Math.random() > 0.62 ? 44 : (Math.random() > 0.5 ? 178 : 236),
+      }));
     }
-  }
+
+    function onMouseMove(event) {
+      mouseX = event.clientX;
+      mouseY = event.clientY;
+      root.style.setProperty("--mx", `${(mouseX - window.innerWidth / 2) / 34}px`);
+      root.style.setProperty("--my", `${(mouseY - window.innerHeight / 2) / 34}px`);
+    }
+
+    function onPointerOver(event) {
+      if (event.target.closest("button, a, label, input, .card, .status-card, .panel")) {
+        cursor.classList.add("is-hovering");
+      }
+    }
+
+    function onPointerOut(event) {
+      if (event.target.closest("button, a, label, input, .card, .status-card, .panel")) {
+        cursor.classList.remove("is-hovering");
+      }
+    }
+
+    function onClick(event) {
+      const ripple = document.createElement("span");
+      ripple.className = "cursor-ripple";
+      ripple.style.left = `${event.clientX}px`;
+      ripple.style.top = `${event.clientY}px`;
+      document.body.appendChild(ripple);
+      ripple.addEventListener("animationend", () => ripple.remove(), { once: true });
+    }
+
+    function draw() {
+      trailX += (mouseX - trailX) * 0.16;
+      trailY += (mouseY - trailY) * 0.16;
+      cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) translate(-50%, -50%)`;
+      cursorTrail.style.transform = `translate3d(${trailX}px, ${trailY}px, 0) translate(-50%, -50%)`;
+
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      particles.forEach((p, index) => {
+        p.x += p.vx + (mouseX - p.x) * 0.00014;
+        p.y += p.vy + (mouseY - p.y) * 0.00014;
+        if (p.x < -20) p.x = window.innerWidth + 20;
+        if (p.x > window.innerWidth + 20) p.x = -20;
+        if (p.y < -20) p.y = window.innerHeight + 20;
+        if (p.y > window.innerHeight + 20) p.y = -20;
+
+        ctx.beginPath();
+        ctx.fillStyle = `hsla(${p.hue}, 54%, 45%, 0.24)`;
+        ctx.shadowColor = `hsla(${p.hue}, 54%, 45%, 0.24)`;
+        ctx.shadowBlur = 10;
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        for (let j = index + 1; j < particles.length; j += 1) {
+          const q = particles[j];
+          const distance = Math.hypot(p.x - q.x, p.y - q.y);
+          if (distance < 125) {
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(48, 58, 140, ${0.055 * (1 - distance / 125)})`;
+            ctx.lineWidth = 1;
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(q.x, q.y);
+            ctx.stroke();
+          }
+        }
+      });
+
+      frameId = requestAnimationFrame(draw);
+    }
+
+    resize();
+    draw();
+    window.addEventListener("resize", resize);
+    window.addEventListener("mousemove", onMouseMove, { passive: true });
+    window.addEventListener("pointerover", onPointerOver);
+    window.addEventListener("pointerout", onPointerOut);
+    window.addEventListener("click", onClick);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("pointerover", onPointerOver);
+      window.removeEventListener("pointerout", onPointerOut);
+      window.removeEventListener("click", onClick);
+    };
+  }, []);
 
   const confidencePct = useMemo(() => {
     if (!result) return 0;
@@ -154,34 +262,31 @@ function App() {
 
   return (
     <main className="page">
+      <canvas ref={canvasRef} className="particle-field" aria-hidden="true" />
+      <div className="cursor-ring" aria-hidden="true" />
+      <div className="cursor-trail" aria-hidden="true" />
       <section className="hero">
-        <h1>DERMAEGIS AI</h1>
+        <p className="eyebrow">Clinical AI Workspace</p>
+        <h1>DermaAegis AI</h1>
         <p className="hero-subtitle">Skin Lesion Intelligence Workspace</p>
-        <p>Upload a lesion image, run your trained model, inspect probabilities, and verify attention focus with Grad-CAM.</p>
+        <p>Upload or capture a lesion image, run the trained model, inspect calibrated probabilities, and verify attention focus with Grad-CAM.</p>
       </section>
 
       <section className="status-strip">
-        <div>
+        <div className="status-card">
           <p className="status-kicker">API</p>
           <p className={`status-value ${apiHealth?.status === "ok" ? "ok" : "bad"}`}>
             {apiHealth?.status === "ok" ? "Connected" : "Disconnected"}
           </p>
         </div>
-        <div>
+        <div className="status-card">
           <p className="status-kicker">Model</p>
           <p className={`status-value ${apiHealth?.model_loaded ? "ok" : "bad"}`}>
             {apiHealth?.model_loaded ? "Loaded" : "Not loaded"}
           </p>
         </div>
-        <div className="status-path-wrap">
-          <p className="status-kicker">Model Path</p>
-          <p className="status-path">{apiHealth?.model_path || "Waiting..."}</p>
-        </div>
       </section>
 
-      <div className="toolbar">
-        <button type="button" onClick={refreshModelCheckpoint}>Load Latest Checkpoint</button>
-      </div>
       {healthError && <p className="error">API check failed: {healthError}</p>}
 
       <section className="panel">
