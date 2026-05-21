@@ -84,17 +84,6 @@ function App() {
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  async function refreshModelCheckpoint() {
-    try {
-      await axios.post(`${API_BASE}/reload-model`);
-      const health = await axios.get(`${API_BASE}/health`);
-      setApiHealth(health.data);
-      setHealthError("");
-    } catch (err) {
-      setHealthError(err.message || "Failed to reload model");
-    }
-  }
-
   const confidencePct = useMemo(() => {
     if (!result) return 0;
     return Math.round(result.confidence * 1000) / 10;
@@ -155,9 +144,10 @@ function App() {
   return (
     <main className="page">
       <section className="hero">
-        <h1>DERMAEGIS AI</h1>
+        <p className="eyebrow">Clinical AI Workspace</p>
+        <h1>DermaAegis AI</h1>
         <p className="hero-subtitle">Skin Lesion Intelligence Workspace</p>
-        <p>Upload a lesion image, run your trained model, inspect probabilities, and verify attention focus with Grad-CAM.</p>
+        <p>Upload or capture a lesion image, run the trained model, inspect calibrated probabilities, and verify attention focus with Grad-CAM.</p>
       </section>
 
       <section className="status-strip">
@@ -173,15 +163,8 @@ function App() {
             {apiHealth?.model_loaded ? "Loaded" : "Not loaded"}
           </p>
         </div>
-        <div className="status-path-wrap">
-          <p className="status-kicker">Model Path</p>
-          <p className="status-path">{apiHealth?.model_path || "Waiting..."}</p>
-        </div>
       </section>
 
-      <div className="toolbar">
-        <button type="button" onClick={refreshModelCheckpoint}>Load Latest Checkpoint</button>
-      </div>
       {healthError && <p className="error">API check failed: {healthError}</p>}
 
       <section className="panel">
